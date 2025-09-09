@@ -1,0 +1,1127 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Gestión — Multi-Negocio</title>
+<style>
+  :root{
+    --bg:#f7f2ec; --panel:#fff9f6; --card:#ffffff; --text:#1f2937; --muted:#6b7280;
+    --primary:#ec8fb4; --primary-weak:#fde7f1; --ok:#16a34a; --warn:#f59e0b; --danger:#dc2626;
+    --border:#eadfda; --input:#fbf6f3; --radius:14px; --shadow:0 8px 24px rgba(31,41,55,.06);
+  }
+  *{box-sizing:border-box} html,body{height:100%}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,"Noto Sans",sans-serif}
+  h1,h2,h3{margin:0 0 .5rem} a{color:#b8326a;text-decoration:none}
+  .muted{color:var(--muted)}
+  input,select,button,textarea{font:inherit;color:var(--text);background:var(--input);border:1px solid var(--border);border-radius:12px;padding:.75rem 1rem;outline:none;transition:.2s}
+  input:focus,select:focus,textarea:focus{box-shadow:0 0 0 3px var(--primary-weak);border-color:#f8c7da}
+  button{cursor:pointer;border:none;background:var(--primary);color:#4a0411;font-weight:700}
+  button.ghost{background:#fff;border:1px solid var(--border);color:#2b2b2b}
+  button.danger{background:var(--danger);color:#fff}
+  .row{display:flex;gap:12px;flex-wrap:wrap}
+  .col{display:flex;flex-direction:column;gap:10px}
+  .app{max-width:1200px;margin:0 auto;min-height:100%;display:grid;grid-template-rows:auto 1fr auto;gap:16px;padding:16px}
+  header{display:flex;align-items:center;justify-content:space-between;background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:10px 12px;box-shadow:var(--shadow)}
+  .brand{display:flex;gap:10px;align-items:center}
+  .brand .logo{width:34px;height:34px;border-radius:10px;background:var(--primary);display:grid;place-items:center;color:#4a0411;font-weight:900}
+  #menuBtn{width:42px;height:42px;border-radius:12px;background:#fff;border:1px solid var(--border);display:grid;place-items:center}
+  #menuBtn span{display:block;width:20px;height:2px;background:#4a0411;margin:3px 0}
+  main{display:grid;grid-template-columns:1fr;gap:16px}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:16px;box-shadow:var(--shadow)}
+  footer{color:var(--muted);font-size:.92rem;display:flex;justify-content:space-between;padding:4px 8px}
+  .drawer{position:fixed;top:0;right:0;width:320px;max-width:86%;height:100%;background:#fff;border-left:1px solid var(--border);transform:translateX(100%);transition:.25s;z-index:30;display:flex;flex-direction:column}
+  .drawer.open{transform:translateX(0)}
+  .drawer header{box-shadow:none;border:none;border-bottom:1px solid var(--border);border-radius:0}
+  .drawer .list{display:flex;flex-direction:column;padding:12px}
+  .drawer .list button{justify-content:flex-start;background:transparent;color:var(--text);border:1px solid var(--border);margin-bottom:10px}
+  .list{display:grid;gap:10px;margin-top:10px}
+  .item{display:grid;grid-template-columns:1fr auto;align-items:center;gap:8px;background:#fff;border:1px solid var(--border);border-radius:12px;padding:12px}
+  .tag{padding:.18rem .55rem;border-radius:999px;border:1px solid var(--border);font-size:.72rem}
+  .tag.ok{background:#ecfdf5;color:#065f46;border-color:#a7f3d0}
+  .tag.warn{background:#fffbeb;color:#92400e;border-color:#fde68a}
+  .tag.danger{background:#fef2f2;color:#991b1b;border-color:#fecaca}
+  .chip{display:inline-flex;gap:8px;align-items:center;padding:.35rem .65rem;border-radius:999px;background:var(--primary-weak);color:#6b1434;font-size:.85rem}
+
+  /* Mesas */
+  .grid-mesas{display:grid;grid-template-columns:repeat(auto-fill, minmax(110px,1fr));gap:10px}
+  .mesa-tile{height:90px;border-radius:12px;border:1px solid var(--border);display:flex;flex-direction:column;justify-content:center;align-items:center;background:#fff;box-shadow:var(--shadow);user-select:none}
+  .mesa-libre{background:#ecfdf5;border-color:#a7f3d0}
+  .mesa-ocupada{background:#fde2e2;border-color:#f8b4b4}
+  .mesa-tile strong{font-size:1rem}
+  .mesa-tile small{color:#6b7280}
+
+  /* Pedido panel */
+  #pedidoPanel{position:sticky;bottom:0}
+  .results{max-height:180px;overflow:auto;border:1px solid var(--border);border-radius:10px;background:#fff}
+  .result-item{padding:8px 10px;border-bottom:1px solid var(--border);cursor:pointer}
+  .result-item:last-child{border-bottom:none}
+
+  /* Modal detalle cierres */
+  .modal{position:fixed;inset:0;background:rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;z-index:60}
+  .modal.hidden{display:none}
+  .modal .box{background:#fff;border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow);width:min(900px,92%);max-height:80vh;overflow:auto;padding:16px}
+  .row-cobro td{background:#ecfdf5}
+  .row-elim td{background:#fde2e2}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<div id="modal" class="modal hidden"><div class="box" id="modalBox"></div></div>
+
+<script>
+/* ================= PERSISTENCIA ================= */
+const LS_KEY="multiNegocioData_v17";
+function loadDB(){const raw=localStorage.getItem(LS_KEY); if(!raw) return {negocios:{},sesion:null}; try{return JSON.parse(raw);}catch{return {negocios:{},sesion:null}}}
+function saveDB(x){localStorage.setItem(LS_KEY, JSON.stringify(x));}
+function uid(){return Math.random().toString(36).slice(2)+Date.now().toString(36);}
+function hash(p){let h=0;for(let i=0;i<p.length;i++){h=(h<<5)-h+p.charCodeAt(i);h|=0}return "h"+(h>>>0).toString(16);}
+let db=loadDB();
+
+/* ================= MODELO =================
+Pedido: {id, mesaId, items:[{prodId,nombre,precio,qty,confQty?}], estado:"abierto"|"cerrado", confirmado?:bool, ts}
+Movimiento: {id, tipo:"ingreso"|"egreso"|"registro", sub?: "cobro"|"eliminacion"|"manual", monto, nota, mesaId?, mesaNombre?, medio?, ts}
+Cierre: {id, inicioISO, finISO, ingresos, egresos, neto, movimientos, detalle:[Movimiento]}
+Usuario: {id,nombre,email,pass,rol,activo,perms:{...}}
+ajustes.impresion: {modo:"sistema"|"rawbt", ancho:number}
+*/
+const ROLES=["mozo","cajera","bartender"];
+const PERMISOS={
+  productos:"Modificar productos",
+  gestionar_mesas:"Gestionar mapa/mesas",
+  tomar_pedidos:"Tomar pedidos (abrir mesas)",
+  usuarios:"Crear/Gestionar usuarios",
+  finanzas:"Ver/Registrar finanzas",
+  cobrar:"Cobrar",
+  eliminar_pedidos:"Eliminar ítems/pedidos confirmados"
+};
+
+/* ========= SESIÓN / AYUDAS ========= */
+function setSesion(s){db.sesion=s; saveDB(db); renderApp();}
+function getSesion(){return db.sesion;}
+function negocioActual(){const s=getSesion(); if(!s) return null; return db.negocios[s.negocio]||null;}
+function usuarioActual(){const n=negocioActual(); if(!n) return null; const s=getSesion(); return n.usuarios.find(u=>u.id===s.userId)||null;}
+function esAdmin(){const u=usuarioActual(); return u && u.rol==="admin";}
+function hasPerm(p){ if(esAdmin()) return true; const u=usuarioActual(); return !!(u && u.perms && u.perms[p]); }
+function money(v){return Number(v||0).toLocaleString("es-AR",{style:"currency",currency:"ARS",maximumFractionDigits:0});}
+function hoyRange(){const d=new Date(); d.setHours(0,0,0,0); const s=d.getTime(); return [s,s+86400000-1];}
+
+/* ========= AUTH ========= */
+function existeNegocio(nombre){return !!db.negocios[nombre?.trim()];}
+function registrarNegocio({negocio,nombre,email,password}){
+  const key=(negocio||"").trim(); if(!key) throw new Error("Ingresá el nombre del negocio.");
+  if(existeNegocio(key)) throw new Error("Ese negocio ya existe.");
+  db.negocios[key]={
+    creado:Date.now(),
+    usuarios:[{id:uid(),nombre:nombre.trim(),email:email.trim().toLowerCase(),pass:hash(password),rol:"admin",activo:true,perms:{}}],
+    productos:[],sectores:[],mesas:[],movimientos:[],pedidos:[],cierres:[],
+    ajustes:{ impresion:{ modo:"sistema", ancho:48 } } // impresión inalámbrica (modo por defecto)
+  };
+  saveDB(db); const admin=db.negocios[key].usuarios[0]; setSesion({negocio:key,userId:admin.id});
+}
+
+/* Buscar por email en todos los negocios */
+function buscarUsuariosPorEmail(email){
+  const out=[]; const e=(email||"").trim().toLowerCase();
+  Object.entries(db.negocios).forEach(([neg,ndata])=>{
+    const u=ndata.usuarios.find(x=>x.email===e);
+    if(u) out.push({negocio:neg, user:u});
+  });
+  return out;
+}
+
+/* Login solo email+pass (selección de negocio si hay varios) */
+function login({email,password, negocioElegido}){
+  const matches = negocioElegido
+    ? [{negocio:negocioElegido, user: (db.negocios[negocioElegido]||{}).usuarios?.find(u=>u.email===(email||"").trim().toLowerCase())}].filter(x=>x.user)
+    : buscarUsuariosPorEmail(email);
+
+  if(matches.length===0) throw new Error("Usuario no existe.");
+  if(matches.length>1 && !negocioElegido){
+    const lista = matches.map(m=>m.negocio);
+    const err = new Error("MULTI_MATCH"); err.negocios = lista; throw err;
+  }
+
+  const {negocio,user} = matches[0];
+  if(!user.activo) throw new Error("Usuario desactivado.");
+  if(user.pass!==hash(password)) throw new Error("Contraseña incorrecta.");
+
+  setSesion({negocio,userId:user.id});
+}
+function cerrarSesion(){setSesion(null);}
+
+/* Ajustes impresión helpers */
+function ajustesImp(){
+  const n=negocioActual(); if(!n) return {modo:"sistema", ancho:48};
+  n.ajustes = n.ajustes || {};
+  n.ajustes.impresion = n.ajustes.impresion || {modo:"sistema", ancho:48};
+  return n.ajustes.impresion;
+}
+
+/* ================= ROOT ================= */
+const root=document.getElementById("root");
+function renderApp(){
+  const s=getSesion(); if(!s){ renderAuth(); return; }
+  const user=usuarioActual();
+  root.innerHTML=`
+    <div class="app">
+      <header>
+        <div class="brand">
+          <div class="logo">GM</div>
+          <div><div><strong>${s.negocio}</strong></div><div class="muted">${user?.nombre||"Usuario"} • ${user?.rol||""}</div></div>
+        </div>
+        <div class="row" style="align-items:center">
+          <button class="ghost" id="btnLogout">Cerrar sesión</button>
+          <button id="menuBtn" aria-label="Menú"><span></span><span></span><span></span></button>
+        </div>
+      </header>
+      <main><div id="view" class="card"></div></main>
+      <footer><span>© 2025 • Multi-Negocio (LocalStorage)</span><span class="muted">PC y Celular</span></footer>
+    </div>
+    <aside class="drawer" id="drawer">
+      <header>
+        <div style="display:flex;align-items:center;justify-content:space-between;width:100%">
+          <strong style="font-size:1.05rem">Menú</strong>
+          <button class="ghost" id="closeDrawer">Cerrar</button>
+        </div>
+      </header>
+      <div class="list">
+        <button data-go="mesas">Mesas</button>
+        <button data-go="mapa">Mapa</button>
+        <button data-go="productos">Productos</button>
+        <button data-go="finanzas">Finanzas</button>
+        <button data-go="ajustes">Ajustes</button>
+      </div>
+    </aside>`;
+  document.getElementById("btnLogout").onclick=cerrarSesion;
+  const drawer=document.getElementById("drawer");
+  document.getElementById("menuBtn").onclick=()=>drawer.classList.add("open");
+  document.getElementById("closeDrawer").onclick=()=>drawer.classList.remove("open");
+  drawer.querySelectorAll("[data-go]").forEach(b=>b.onclick=()=>{drawer.classList.remove("open"); go(b.dataset.go);});
+  go("mesas");
+}
+
+/* Login UI */
+function renderAuth(){
+  root.innerHTML=`
+    <div class="auth-wrap">
+      <div class="card">
+        <h2>Iniciar sesión</h2>
+        <div class="col" style="margin-top:8px">
+          <input id="logEmail" type="email" placeholder="Email"/>
+          <input id="logPass" type="password" placeholder="Contraseña"/>
+          <button id="btnLogin">Entrar</button>
+          <div id="logMsg" class="muted"></div>
+          <div id="multiNegSelect" class="hidden"></div>
+        </div>
+        <div class="auth-secondary">
+          <details>
+            <summary style="cursor:pointer"><strong>¿Registrar negocio?</strong> (serás admin)</summary>
+            <div class="col" style="margin-top:12px">
+              <input id="regNegocio" placeholder="Nombre del negocio"/>
+              <div class="row"><input id="regNombre" placeholder="Tu nombre"/><input id="regEmail" type="email" placeholder="Tu email"/></div>
+              <input id="regPass" type="password" placeholder="Contraseña"/>
+              <button id="btnRegistrar">Crear negocio</button>
+              <div id="regMsg" class="muted"></div>
+            </div>
+          </details>
+        </div>
+      </div>
+    </div>`;
+  const msg=document.getElementById("logMsg");
+  const multiBox=document.getElementById("multiNegSelect");
+
+  function intentarLogin(negocioElegido){
+    const email=document.getElementById("logEmail").value;
+    const pass=document.getElementById("logPass").value;
+    try{
+      login({email,password:pass,negocioElegido});
+    }catch(e){
+      if(e.message==="MULTI_MATCH"){
+        multiBox.classList.remove("hidden");
+        multiBox.innerHTML = `
+          <div class="col" style="margin-top:8px">
+            <label class="muted">Este email existe en varios negocios. Elegí uno:</label>
+            <div class="row">
+              ${e.negocios.map(n=>`<button class="ghost" data-neg="${n}">${n}</button>`).join("")}
+            </div>
+          </div>`;
+        multiBox.querySelectorAll('[data-neg]').forEach(b=>{
+          b.onclick=()=>intentarLogin(b.getAttribute('data-neg'));
+        });
+        msg.textContent=""; return;
+      }
+      msg.textContent=e.message;
+    }
+  }
+  document.getElementById("btnLogin").onclick=()=>intentarLogin();
+
+  const btnReg=document.getElementById("btnRegistrar");
+  if(btnReg){
+    btnReg.onclick=()=>{
+      const negocio=document.getElementById("regNegocio").value;
+      const nombre=document.getElementById("regNombre").value;
+      const email=document.getElementById("regEmail").value;
+      const pass=document.getElementById("regPass").value;
+      const rmsg=document.getElementById("regMsg");
+      try{
+        if(!negocio||!nombre||!email||!pass) throw new Error("Completá todos los campos.");
+        registrarNegocio({negocio,nombre,email,password:pass});
+      }catch(e){ rmsg.textContent=e.message; }
+    };
+  }
+}
+
+/* =============== ROUTER (guardas) =============== */
+function go(view){
+  const v=document.getElementById("view"); if(!getSesion()){renderAuth();return;}
+  if(view==="mapa" && !hasPerm("gestionar_mesas")){ v.innerHTML=`<div class="card"><h2>Mapa</h2><p class="muted">No tenés permiso para gestionar mesas.</p></div>`; return; }
+  if(view==="productos" && !hasPerm("productos")){ v.innerHTML=`<div class="card"><h2>Productos</h2><p class="muted">No tenés permiso para modificar productos.</p></div>`; return; }
+  if(view==="finanzas" && !hasPerm("finanzas")){ v.innerHTML=`<div class="card"><h2>Finanzas</h2><p class="muted">No tenés permiso para ver/registrar finanzas.</p></div>`; return; }
+  if(view==="ajustes" && !(hasPerm("usuarios") || esAdmin())){ v.innerHTML=`<div class="card"><h2>Ajustes</h2><p class="muted">No tenés permiso para gestionar usuarios.</p></div>`; return; }
+
+  if(view==="mesas") renderMesas(v);
+  else if(view==="mapa") renderMapa(v);
+  else if(view==="productos") renderProductos(v);
+  else if(view==="finanzas") renderFinanzas(v);
+  else if(view==="ajustes") renderAjustes(v);
+}
+
+/* =============== HELPERS DATA =============== */
+function negocioPushMovimiento(tipo,monto,nota,{sub="manual",mesaId=null,mesaNombre=null,medio=null}={}){
+  const n=negocioActual();
+  n.movimientos.push({id:uid(),tipo,sub,monto:Number(monto||0),nota,mesaId,mesaNombre,medio,ts:Date.now()});
+  saveDB(db);
+}
+function pedidoAbiertoPorMesa(mesaId){
+  const n=negocioActual(); return n.pedidos.find(p=>p.mesaId===mesaId && p.estado==="abierto")||null;
+}
+function totalPedido(p){ return (p.items||[]).reduce((a,b)=>a + Number(b.precio)*Number(b.qty||1),0); }
+
+/* Ocupación real = pedido abierto con ítems */
+function mesaTienePedidoCargado(mesaId){
+  const p=pedidoAbiertoPorMesa(mesaId);
+  return !!(p && Array.isArray(p.items) && p.items.length>0);
+}
+function updateMesaTileColor(mesaId){
+  const tile=document.querySelector(`.mesa-tile[data-mesa="${mesaId}"]`);
+  if(!tile) return;
+  if(mesaTienePedidoCargado(mesaId)){
+    tile.classList.add('mesa-ocupada'); tile.classList.remove('mesa-libre');
+  }else{
+    tile.classList.add('mesa-libre'); tile.classList.remove('mesa-ocupada');
+  }
+}
+function removePedidoById(pedidoId){
+  const n=negocioActual();
+  const i=n.pedidos.findIndex(x=>x.id===pedidoId);
+  if(i>=0){ n.pedidos.splice(i,1); saveDB(db); }
+}
+
+/* ======= Impresión – helpers y dispatcher ======= */
+function padRight(text="", width=48){
+  const s=(text||"").toString();
+  if(s.length>=width) return s.slice(0,width);
+  return s + " ".repeat(width - s.length);
+}
+function moneyARS(v){ return money(v).replace(/\s+/g," "); }
+
+function buildTicketHTML({titulo, encabezado=[], lineas=[], totales=[]}){
+  const body = []
+    .concat(encabezado)
+    .concat(["------------------------------"])
+    .concat(lineas)
+    .concat(totales.length?["------------------------------", ...totales]:[]);
+  return `
+    <html><head><meta charset="utf-8"><title>${titulo||"Ticket"}</title></head>
+    <body style="font-family:monospace;padding:20px">
+      <h3 style="margin:0 0 6px">${titulo||"Ticket"}</h3>
+      <div style="white-space:pre-line;line-height:1.35">${body.join("\n")}</div>
+    </body></html>`;
+}
+
+/* Envío a impresora según modo seleccionado */
+function printDispatch({titulo="Ticket", encabezado=[], lineas=[], totales=[]}){
+  const imp = ajustesImp();
+  const negocio = getSesion()?.negocio || "Negocio";
+  if(imp.modo==="rawbt"){
+    // Texto plano para RAWBT (Android). Requiere app RawBT instalada.
+    const payload = [ `${negocio}`, ...encabezado, "------------------------------", ...lineas, ...(totales.length?["------------------------------", ...totales]:[]) ].join("\n");
+    try{
+      // Esquema de intento para RawBT. Algunos navegadores pueden bloquear; se abre como enlace.
+      const uri = `rawbt:${encodeURIComponent(payload)}`;
+      const a=document.createElement('a'); a.href=uri; a.style.display='none'; document.body.appendChild(a); a.click(); setTimeout(()=>a.remove(),500);
+    }catch(e){
+      alert("No se pudo abrir RawBT. Verificá que esté instalada y probá nuevamente.");
+    }
+  }else{
+    // Diálogo del sistema (WiFi/AirPrint/Mopria)
+    const html = buildTicketHTML({titulo,encabezado,lineas,totales});
+    const w=window.open("","_blank");
+    if(!w){ alert("El navegador bloqueó la ventana de impresión. Permití ventanas emergentes."); return; }
+    w.document.write(html); w.document.close(); w.focus(); w.print();
+  }
+}
+
+/* =============== MESAS (grid + pedido) =============== */
+function renderMesas(el){
+  const n=negocioActual();
+  const sectores=n.sectores;
+  let sectorSel=(window.__sectorMesasSel || "todos");
+  const mesas = sectorSel==="todos" ? n.mesas : n.mesas.filter(m=>m.sectorId===sectorSel);
+
+  el.innerHTML=`
+    <div class="row" style="justify-content:space-between;align-items:center">
+      <div class="row" style="align-items:center"><h2>Mesas</h2><span class="chip">${hasPerm("tomar_pedidos")?'Toque para tomar pedido':'Vista solo lectura'}</span></div>
+      <div class="row">
+        <select id="fSector"><option value="todos">Todos los sectores</option>${sectores.map(s=>`<option value="${s.id}" ${s.id===sectorSel?'selected':''}>${s.nombre}</option>`).join("")}</select>
+        ${hasPerm("gestionar_mesas")?`<button class="ghost" onclick="go('mapa')">Gestionar mapa</button>`:""}
+      </div>
+    </div>
+    <div class="grid-mesas" id="gridMesas">
+      ${
+        mesas.length ? mesas.map(m=>{
+          const ocupada = mesaTienePedidoCargado(m.id);
+          return `<div class="mesa-tile ${ocupada?'mesa-ocupada':'mesa-libre'}" data-mesa="${m.id}" title="${m.nombre}" ${hasPerm("tomar_pedidos")?'':'style="opacity:.7;pointer-events:none"'} >
+                    <strong>${m.nombre}</strong>
+                    <small>${(sectores.find(s=>s.id===m.sectorId)||{}).nombre||'-'}</small>
+                  </div>`;
+        }).join("") : `<div class="card"><p class="muted">No hay mesas/barras. ${hasPerm("gestionar_mesas")?"Crealas en <b>Mapa</b>.":"(Pedí al admin permiso de Gestionar mesas)"}</p></div>`
+      }
+    </div>
+    <div id="pedidoPanel" class="card hidden"></div>
+  `;
+  document.getElementById("fSector").onchange=(e)=>{ window.__sectorMesasSel=e.target.value; renderMesas(el); };
+  if(hasPerm("tomar_pedidos")){
+    document.querySelectorAll('[data-mesa]').forEach(tile=>{
+      tile.onclick=()=> uiTomarPedido(tile.getAttribute('data-mesa'));
+    });
+  }
+}
+
+function uiTomarPedido(mesaId){
+  if(!hasPerm("tomar_pedidos")) return alert("No tenés permiso para tomar pedidos.");
+  const n=negocioActual();
+  let p = pedidoAbiertoPorMesa(mesaId);
+  if(!p){ p={id:uid(),mesaId,items:[],estado:"abierto",total:0,ts:Date.now(),confirmado:false}; n.pedidos.push(p); saveDB(db); }
+  const mesa=n.mesas.find(m=>m.id===mesaId);
+  const panel=document.getElementById("pedidoPanel");
+  panel.classList.remove("hidden");
+
+  panel.innerHTML=`
+    <div class="row" style="justify-content:space-between;align-items:center">
+      <h3>Pedido — ${mesa?.nombre||'-'}${p.confirmado?' <span class="tag warn">CONFIRMADO</span>':''}</h3>
+      <div class="row">
+        ${hasPerm("eliminar_pedidos")?`<button class="danger" id="btnEliminarPedido" title="Anular todo el pedido">Eliminar pedido</button>`:""}
+        <button class="ghost" onclick="document.getElementById('pedidoPanel').classList.add('hidden')">Cerrar</button>
+      </div>
+    </div>
+
+    <div class="col" style="margin-top:6px">
+      <label class="muted">Buscar producto (tecleá el inicio del nombre)</label>
+      <input id="searchProd" placeholder="Ej: cer, emp, gin, etc." autocomplete="off"/>
+      <div id="results" class="results hidden"></div>
+    </div>
+
+    <div class="card" style="margin-top:10px">
+      <h4>Ítems</h4>
+      <table style="margin-top:8px">
+        <thead><tr><th>Producto</th><th class="right">Precio</th><th class="right">Cant.</th><th class="right">Subtotal</th><th class="right">Acciones</th></tr></thead>
+        <tbody id="ppTable">
+          ${
+            p.items.length? p.items.map((it,idx)=>`
+              <tr>
+                <td>${it.nombre}</td>
+                <td class="right">${money(it.precio)}</td>
+                <td class="right">${it.qty}</td>
+                <td class="right">${money(it.precio*it.qty)}</td>
+                <td class="right">
+                  <button class="ghost" onclick="cambiarQty('${p.id}',${idx})" ${p.confirmado && !hasPerm('eliminar_pedidos')?'title="Pedido confirmado: solo podés aumentar"':''}>Cant.</button>
+                  <button class="danger" onclick="eliminarItemPedido('${p.id}',${idx})" ${p.confirmado && !hasPerm('eliminar_pedidos')?'disabled title="Pedido confirmado: no podés quitar"':''}>Quitar</button>
+                </td>
+              </tr>
+            `).join("") : `<tr><td colspan="5" class="muted">Sin ítems.</td></tr>`
+          }
+        </tbody>
+      </table>
+      <div class="row" style="justify-content:space-between;margin-top:10px">
+        <strong>Total: ${money(totalPedido(p))}</strong>
+        <div class="row">
+          <button id="btnConfirmar">Confirmar (imprimir)</button>
+          <button class="ghost" id="btnImprimir">Imprimir ticket</button>
+          ${hasPerm("cobrar")?`<button id="btnCobrar">Cobrar</button>`:""}
+        </div>
+      </div>
+    </div>
+  `;
+
+  // Búsqueda (permite agregar incluso confirmado)
+  const input=document.getElementById("searchProd");
+  const results=document.getElementById("results");
+  if(input){
+    input.oninput=()=>{
+      const q=(input.value||"").trim().toLowerCase();
+      if(!q){ results.innerHTML=""; results.classList.add("hidden"); return; }
+      const candidatos=n.productos.filter(pr=>pr.activo!==false && pr.nombre.toLowerCase().startsWith(q));
+      if(!candidatos.length){ results.innerHTML=`<div class="result-item muted">Sin coincidencias</div>`; results.classList.remove("hidden"); return; }
+      results.innerHTML=candidatos.map(pr=>`<div class="result-item" data-add="${pr.id}">${pr.nombre} — ${money(pr.precio)}</div>`).join("");
+      results.classList.remove("hidden");
+      results.querySelectorAll("[data-add]").forEach(it=>{
+        it.onclick=()=>{
+          const id=it.getAttribute("data-add");
+          const pr=n.productos.find(x=>x.id===id);
+          if(!pr) return;
+          const exIdx=p.items.findIndex(x=>x.prodId===pr.id);
+          if(exIdx>=0){
+            p.items[exIdx].qty += 1; // confQty se mantiene (solo sumar)
+          } else {
+            p.items.push({prodId:pr.id,nombre:pr.nombre,precio:Number(pr.precio),qty:1,confQty:0});
+          }
+          saveDB(db);
+          updateMesaTileColor(mesaId);
+          uiTomarPedido(mesaId);
+        };
+      });
+    };
+  }
+
+  document.getElementById("btnImprimir").onclick=()=>imprimirTicket(mesaId);
+
+  const btnC=document.getElementById("btnConfirmar");
+  if(btnC) btnC.onclick=()=>{
+    // calcular SOLO lo nuevo desde última confirmación
+    const nuevas = p.items.map(it=>{
+      const ya = Number(it.confQty||0);
+      const delta = Number(it.qty) - ya;
+      return delta>0 ? {nombre:it.nombre, qty:delta, precio:it.precio} : null;
+    }).filter(Boolean);
+
+    if(nuevas.length===0){ alert("No hay nuevos ítems para confirmar."); return; }
+
+    imprimirTicketConfirmacion(mesaId, nuevas);
+
+    // marcar confirmadas las cantidades actuales
+    p.items.forEach(it=>{ it.confQty = Number(it.qty); });
+    p.confirmado = true;
+    saveDB(db);
+    uiTomarPedido(mesaId);
+  };
+
+  const btnCobrar=document.getElementById("btnCobrar");
+  if(btnCobrar) btnCobrar.onclick=()=>cobrarMesa(mesaId);
+  const btnEliminarPedido=document.getElementById("btnEliminarPedido");
+  if(btnEliminarPedido) btnEliminarPedido.onclick=()=>anularPedidoEntero(mesaId);
+}
+
+/* ======= Cambiar cantidad (quitar parcial con motivo; registro neutro) ======= */
+function cambiarQty(pedidoId, idx){
+  const n=negocioActual(); const p=n.pedidos.find(x=>x.id===pedidoId); if(!p) return;
+  const item=p.items[idx]; if(!item) return;
+
+  const previoQty = Number(item.qty);
+  const previoConf = Number(item.confQty||0);
+
+  const nuevo=prompt("Nueva cantidad:", item.qty);
+  if(nuevo===null||nuevo==="") return;
+  const q=Number(nuevo);
+  if(!Number.isFinite(q) || q<=0) return alert("Cantidad inválida.");
+
+  if(p.confirmado){
+    if(!hasPerm("eliminar_pedidos")){
+      if(q < previoQty){ alert("No podés bajar cantidad después de confirmar."); return; }
+      item.qty=q; // subir es ok
+      saveDB(db); updateMesaTileColor(p.mesaId); uiTomarPedido(p.mesaId); return;
+    }else{
+      if(q < previoQty){
+        const delta = previoQty - q; // total a quitar
+        const maxElim = delta;
+        const cantStr = prompt(`¿Cuántas unidades querés eliminar de "${item.nombre}"? (1–${maxElim})`, String(maxElim));
+        if(cantStr===null||cantStr==="") return;
+        let elim = Number(cantStr);
+        if(!Number.isFinite(elim) || elim<1 || elim>maxElim){ alert("Cantidad a eliminar inválida."); return; }
+        const motivo = prompt("Motivo de la eliminación (breve):","");
+
+        const elimConf = Math.min(elim, previoConf);
+        if(elimConf>0){
+          const mesa=n.mesas.find(m=>m.id===p.mesaId);
+          negocioPushMovimiento("registro", item.precio*elimConf, motivo||`Eliminación ${item.nombre}`, {sub:"eliminacion",mesaId:p.mesaId,mesaNombre:mesa?.nombre||"-",medio:"—"});
+          imprimirTicketEliminacion(p.mesaId, [{nombre:item.nombre, qty:elimConf, precio:item.precio}], motivo);
+          item.confQty = Math.max(previoConf - elimConf, 0);
+        }
+        item.qty = previoQty - elim;
+        if(item.qty<=0){ p.items.splice(idx,1); }
+        saveDB(db); updateMesaTileColor(p.mesaId); uiTomarPedido(p.mesaId); return;
+      }
+      item.qty=q; saveDB(db); updateMesaTileColor(p.mesaId); uiTomarPedido(p.mesaId); return;
+    }
+  }
+  item.qty=q; if(item.qty<=0){ p.items.splice(idx,1); }
+  saveDB(db); updateMesaTileColor(p.mesaId); uiTomarPedido(p.mesaId);
+}
+
+/* ======= Eliminar ítem (parcial/con motivo; registro neutro) ======= */
+function eliminarItemPedido(pedidoId, idx){
+  const n=negocioActual(); const p=n.pedidos.find(x=>x.id===pedidoId); if(!p) return;
+  const it=p.items[idx]; if(!it) return;
+
+  if(p.confirmado && !hasPerm("eliminar_pedidos")){ alert("Pedido confirmado. No podés quitar ítems."); return; }
+
+  const maxElim = it.qty;
+  const cantStr = prompt(`¿Cuántas unidades de "${it.nombre}" querés eliminar? (1–${maxElim})`, String(maxElim));
+  if(cantStr===null||cantStr==="") return;
+  let elim = Number(cantStr);
+  if(!Number.isFinite(elim) || elim<1 || elim>maxElim){ alert("Cantidad a eliminar inválida."); return; }
+
+  let motivo = "";
+  if(p.confirmado){ motivo = prompt("Motivo de la eliminación (breve):","") || ""; }
+
+  const confAct = Number(it.confQty||0);
+  const elimConf = p.confirmado ? Math.min(elim, confAct) : 0;
+
+  if(elimConf>0){
+    const mesa=n.mesas.find(m=>m.id===p.mesaId);
+    negocioPushMovimiento("registro", it.precio*elimConf, motivo||`Eliminación ${it.nombre}`, {sub:"eliminacion",mesaId:p.mesaId,mesaNombre:mesa?.nombre||"-",medio:"—"});
+    imprimirTicketEliminacion(p.mesaId, [{nombre:it.nombre, qty:elimConf, precio:it.precio}], motivo);
+    it.confQty = Math.max(confAct - elimConf, 0);
+  }
+
+  it.qty = it.qty - elim;
+  if(it.qty<=0){ p.items.splice(idx,1); }
+  saveDB(db);
+  updateMesaTileColor(p.mesaId);
+  uiTomarPedido(p.mesaId);
+}
+
+/* ======= Tickets (usan printDispatch) ======= */
+function imprimirTicket(mesaId){
+  const n=negocioActual(); const p=pedidoAbiertoPorMesa(mesaId); if(!p) return alert("No hay pedido abierto.");
+  const mesa=n.mesas.find(m=>m.id===mesaId);
+  const encabezado = [
+    `Mesa: ${mesa?.nombre||'-'}`,
+    `Fecha: ${new Date().toLocaleString()}`
+  ];
+  const lineas = p.items.map(it=>`${padRight(`${it.qty} x ${it.nombre}`, 28)} ${moneyARS(it.precio*it.qty)}`);
+  const totales = [ `Total: ${moneyARS(totalPedido(p))}` ];
+  printDispatch({titulo:"Ticket",encabezado,lineas,totales});
+}
+
+function imprimirTicketConfirmacion(mesaId, nuevas){
+  const n=negocioActual(); const mesa=n.mesas.find(m=>m.id===mesaId);
+  const user=usuarioActual();
+  const totalNuevas = nuevas.reduce((a,b)=>a + b.precio*b.qty, 0);
+  const encabezado = [
+    `Mesa: ${mesa?.nombre||"-"}`,
+    `Operador: ${user?.nombre||"-"}`,
+    `Fecha: ${new Date().toLocaleString()}`
+  ];
+  const lineas = nuevas.map(it=>`${padRight(`${it.qty} x ${it.nombre}`,28)} ${moneyARS(it.precio*it.qty)}`);
+  const totales = [ `Total de esta confirmación: ${moneyARS(totalNuevas)}` ];
+  printDispatch({titulo:"Confirmación",encabezado,lineas,totales});
+}
+
+/* Ticket de eliminación (solo confirmado) con motivo (neutro) */
+function imprimirTicketEliminacion(mesaId, removed, motivo){
+  const n=negocioActual(); const mesa=n.mesas.find(m=>m.id===mesaId);
+  const user=usuarioActual();
+  const encabezado = [
+    `Mesa: ${mesa?.nombre||"-"}`,
+    `Operador: ${user?.nombre||"-"}`,
+    ...(motivo?[`Motivo: ${motivo}`]:[]),
+    `Fecha: ${new Date().toLocaleString()}`
+  ];
+  const lineas = removed.map(it=>`${padRight(`- ${it.qty} x ${it.nombre}`,28)} -${moneyARS(it.precio*it.qty)}`);
+  const totales = [ `Total eliminado (no contable): -${moneyARS(removed.reduce((a,b)=>a+b.precio*b.qty,0))}` ];
+  printDispatch({titulo:"Eliminación",encabezado,lineas,totales});
+}
+
+/* ======= Anular pedido entero (motivo, ticket y registro neutro) ======= */
+function anularPedidoEntero(mesaId){
+  if(!hasPerm("eliminar_pedidos")) return alert("No tenés permiso para eliminar pedidos.");
+  const n=negocioActual(); const p=pedidoAbiertoPorMesa(mesaId);
+  if(!p){ alert("No hay pedido abierto."); return; }
+
+  const motivo = prompt("Motivo de la anulación del pedido (breve):","") || "";
+
+  const removed = p.items.map(it=>{
+    const c = Number(it.confQty||0);
+    return c>0 ? {nombre:it.nombre, qty:c, precio:it.precio} : null;
+  }).filter(Boolean);
+
+  if(removed.length){
+    const totalElim = removed.reduce((a,it)=>a+it.precio*it.qty,0);
+    const mesa=n.mesas.find(m=>m.id===p.mesaId);
+    negocioPushMovimiento("registro", totalElim, motivo||"Eliminación pedido completo", {sub:"eliminacion",mesaId:p.mesaId,mesaNombre:mesa?.nombre||"-",medio:"—"});
+    imprimirTicketEliminacion(mesaId, removed, motivo);
+  }else{
+    if(!confirm("El pedido no tenía ítems confirmados. ¿Eliminar sin imprimir?")) return;
+  }
+
+  removePedidoById(p.id);
+  saveDB(db);
+  updateMesaTileColor(mesaId);
+  alert("Pedido eliminado.");
+  document.getElementById('pedidoPanel')?.classList.add('hidden');
+  go("mesas");
+}
+
+/* ======= Cobrar ======= */
+function cobrarMesa(mesaId){
+  if(!hasPerm("cobrar")) return alert("No tenés permiso para cobrar.");
+  const n=negocioActual();
+  const p=pedidoAbiertoPorMesa(mesaId); if(!p){ alert("No hay pedido abierto."); return; }
+  if(p.items.length===0){ alert("El pedido está vacío."); return; }
+  const total=totalPedido(p);
+  const mesa=n.mesas.find(m=>m.id===mesaId);
+  const medio = prompt("Medio de pago (Efectivo / MP):","Efectivo");
+  if(!medio) return;
+  if(!confirm(`Cobrar ${money(total)} a ${mesa?.nombre||'-'} por ${medio}?`)) return;
+
+  negocioPushMovimiento("ingreso", total, `Cobro ${mesa?.nombre||'-'} (${medio})`, {sub:"cobro", mesaId:mesaId, mesaNombre:mesa?.nombre||"-", medio});
+  removePedidoById(p.id);
+  saveDB(db);
+  updateMesaTileColor(mesaId);
+
+  alert("Cobro registrado.");
+  document.getElementById('pedidoPanel')?.classList.add('hidden');
+  go("mesas");
+}
+
+/* =============== MAPA (Sectores + Mesas) =============== */
+function renderMapa(el){
+  const n=negocioActual();
+  let sectorSel=(window.__sectorMapaSel || (n.sectores[0]?.id || "none"));
+  if(sectorSel!=="none" && !n.sectores.find(s=>s.id===sectorSel)) sectorSel="none";
+
+  el.innerHTML=`
+    <div class="row" style="justify-content:space-between;align-items:center">
+      <h2>Mapa</h2><span class="muted">Sectores y mesas/barras</span>
+    </div>
+
+    <div class="card">
+      <h3>Crear sector</h3>
+      <div class="row" style="align-items:end">
+        <div class="col" style="flex:2"><label class="muted">Nombre</label><input id="sNombre" placeholder="Ej: Terraza / Salón / VIP"/></div>
+        <button id="btnAddSector" style="height:48px">Agregar sector</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Crear mesa/barra</h3>
+      <div class="row" style="align-items:end">
+        <div class="col" style="flex:1"><label class="muted">Tipo</label><select id="mTipo"><option value="mesa">Mesa</option><option value="barra">Barra</option></select></div>
+        <div class="col" style="flex:2"><label class="muted">Nombre</label><input id="mNombre" placeholder="Ej: Mesa 1 / Barra A"/></div>
+        <div class="col" style="flex:1">
+          <label class="muted">Sector</label>
+          <select id="mSector">${n.sectores.length ? n.sectores.map(s=>`<option value="${s.id}" ${s.id===sectorSel?'selected':''}>${s.nombre}</option>`).join("") : `<option value="">(Primero crea un sector)</option>`}</select>
+        </div>
+        <button id="btnAddMesa" style="height:48px" ${n.sectores.length? "":"disabled"}>Agregar</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Sectores</h3>
+      <div class="row" style="align-items:center">
+        ${ n.sectores.length ? n.sectores.map(s=>`<button class="ghost" data-sector="${s.id}">${s.nombre}</button>`).join("") : `<span class="muted">Aún no hay sectores.</span>` }
+      </div>
+      <div id="secVista" style="margin-top:12px"></div>
+    </div>
+  `;
+  document.querySelectorAll('[data-sector]').forEach(b=>b.onclick=()=>{ window.__sectorMapaSel=b.getAttribute('data-sector'); renderMapa(el); });
+  document.getElementById("btnAddSector").onclick=()=>{
+    const nombre=document.getElementById("sNombre").value.trim(); if(!nombre) return alert("Ingresá un nombre.");
+    n.sectores.push({id:uid(),nombre}); saveDB(db); renderMapa(el);
+  };
+  const btnAddMesa=document.getElementById("btnAddMesa");
+  if(btnAddMesa) btnAddMesa.onclick=()=>{
+    const tipo=document.getElementById("mTipo").value;
+    const nombre=document.getElementById("mNombre").value.trim();
+    const sectorId=document.getElementById("mSector").value;
+    if(!nombre||!sectorId) return alert("Completá nombre y sector.");
+    n.mesas.push({id:uid(),tipo,nombre,sectorId}); saveDB(db); renderMapa(el);
+  };
+
+  const secVista=document.getElementById("secVista");
+  if(n.sectores.length){
+    const sel=n.sectores.find(s=>s.id=== (window.__sectorMapaSel || n.sectores[0].id)) || n.sectores[0];
+    window.__sectorMapaSel=sel.id;
+    const mesasSec=n.mesas.filter(m=>m.sectorId===sel.id);
+    secVista.innerHTML=`
+      <div class="row" style="justify-content:space-between;align-items:center">
+        <h4>${sel.nombre}</h4>
+        <div class="row">
+          <button class="ghost" onclick="renombrarSector('${sel.id}')">Renombrar</button>
+          <button class="danger" onclick="borrarSector('${sel.id}')">Eliminar sector</button>
+        </div>
+      </div>
+      <div class="grid-mesas" style="margin-top:10px">
+        ${
+          mesasSec.length ? mesasSec.map(m=>{
+            const ocupada = mesaTienePedidoCargado(m.id);
+            return `
+            <div class="mesa-tile ${ocupada?'mesa-ocupada':'mesa-libre'}">
+              <strong>${m.nombre}</strong>
+              <small>${m.tipo||'mesa'}</small>
+              <div class="row" style="gap:6px;margin-top:6px">
+                <button class="ghost" onclick="renombrarMesa('${m.id}')">Ren</button>
+                <button class="danger" onclick="borrarMesa('${m.id}')">Del</button>
+              </div>
+            </div>`;
+          }).join("") : `<p class="muted">Sin mesas en este sector.</p>`
+        }
+      </div>`;
+  }
+}
+function renombrarSector(id){const n=negocioActual(); const s=n.sectores.find(x=>x.id===id); if(!s) return; const nuevo=prompt("Nuevo nombre del sector", s.nombre); if(!nuevo) return; s.nombre=nuevo.trim(); saveDB(db); go("mapa");}
+function borrarSector(id){if(!confirm("Eliminar sector y quitar su referencia de las mesas?")) return; const n=negocioActual(); n.sectores=n.sectores.filter(s=>s.id!==id); n.mesas.forEach(m=>{ if(m.sectorId===id) m.sectorId=null; }); saveDB(db); go("mapa");}
+function renombrarMesa(id){const n=negocioActual(); const m=n.mesas.find(x=>x.id===id); if(!m) return; const nuevo=prompt("Nuevo nombre", m.nombre); if(!nuevo) return; m.nombre=nuevo.trim(); saveDB(db); go("mapa");}
+function borrarMesa(id){if(!confirm("¿Eliminar esta mesa/barra?")) return; const n=negocioActual(); const i=n.mesas.findIndex(x=>x.id===id); if(i>=0){ n.mesas.splice(i,1); saveDB(db); go("mapa"); }}
+
+/* =============== PRODUCTOS =============== */
+function renderProductos(el){
+  const n=negocioActual();
+  el.innerHTML=`
+    <div class="row" style="justify-content:space-between;align-items:center"><h2>Productos</h2><span class="muted">Agregar y cambiar precios</span></div>
+    ${ hasPerm("productos") ? `
+    <div class="card">
+      <h3>Nuevo producto</h3>
+      <div class="row" style="align-items:end;margin-top:8px">
+        <div class="col" style="flex:2"><label class="muted">Nombre</label><input id="pNombre" placeholder="Ej: Cerveza IPA 500 ml"/></div>
+        <div class="col" style="flex:1"><label class="muted">Precio</label><input id="pPrecio" type="number" min="0" placeholder="0"/></div>
+        <button id="btnAddProd" style="height:48px">Agregar</button>
+      </div>
+    </div>`:""}
+    <div class="card">
+      <h3>Listado</h3>
+      <table style="margin-top:10px">
+        <thead><tr><th>Producto</th><th class="right">Precio</th><th>Estado</th><th class="right">Acciones</th></tr></thead>
+        <tbody id="prodRows"></tbody>
+      </table>
+    </div>`;
+  const tbody=document.getElementById("prodRows");
+  const draw=()=>{
+    const lista=n.productos;
+    tbody.innerHTML = lista.length ? lista.map(p=>`
+      <tr>
+        <td>${p.nombre}</td>
+        <td class="right">${money(p.precio)}</td>
+        <td>${p.activo?'<span class="tag ok">activo</span>':'<span class="tag danger">inactivo</span>'}</td>
+        <td class="right">
+          ${ hasPerm("productos") ? `
+            <button class="ghost" onclick="editarProducto('${p.id}')">Editar</button>
+            <button class="ghost" onclick="toggleProducto('${p.id}')">${p.activo?'Desactivar':'Activar'}</button>
+            <button class="danger" onclick="borrarProducto('${p.id}')">Eliminar</button>` : `<span class="muted">Sin permisos</span>` }
+        </td>
+      </tr>`).join("") : `<tr><td colspan="4" class="muted">Sin productos.</td></tr>`;
+  };
+  draw();
+  const addBtn=document.getElementById("btnAddProd");
+  if(addBtn) addBtn.onclick=()=>{
+    const nombre=document.getElementById("pNombre").value.trim();
+    const precio=Number(document.getElementById("pPrecio").value||0);
+    if(!nombre||!precio) return alert("Completá nombre y precio.");
+    n.productos.push({id:uid(),nombre,precio,activo:true}); saveDB(db); draw();
+  };
+}
+function editarProducto(id){if(!hasPerm("productos")) return alert("Sin permiso."); const n=negocioActual(); const p=n.productos.find(x=>x.id===id); if(!p) return; const nn=prompt("Nuevo nombre", p.nombre); if(!nn) return; const np=prompt("Nuevo precio", p.precio); if(np===null) return; const val=Number(np); if(!val||val<=0) return alert("Precio inválido."); p.nombre=nn.trim(); p.precio=val; saveDB(db); go("productos");}
+function toggleProducto(id){if(!hasPerm("productos")) return alert("Sin permiso."); const n=negocioActual(); const p=n.productos.find(x=>x.id===id); if(!p) return; p.activo=!p.activo; saveDB(db); go("productos");}
+function borrarProducto(id){if(!hasPerm("productos")) return alert("Sin permiso."); if(!confirm("¿Eliminar producto?")) return; const n=negocioActual(); const i=n.productos.findIndex(x=>x.id===id); if(i>=0){ n.productos.splice(i,1); saveDB(db); go("productos"); }}
+
+/* =============== FINANZAS (sin borrar movimientos) =============== */
+function renderFinanzas(el){
+  if(!hasPerm("finanzas")){ el.innerHTML=`<div class="card"><h2>Finanzas</h2><p class="muted">No tenés permiso.</p></div>`; return; }
+  const n=negocioActual();
+  const [start,end]=hoyRange();
+  const hoy=n.movimientos.filter(m=>m.ts>=start && m.ts<=end);
+
+  // Totales: solo ingreso/egreso. Las eliminaciones son "registro" (neutro)
+  const ingresos=hoy.filter(m=>m.tipo==="ingreso").reduce((a,b)=>a+Number(b.monto||0),0);
+  const egresos=hoy.filter(m=>m.tipo==="egreso").reduce((a,b)=>a+Number(b.monto||0),0);
+  const neto=ingresos-egresos;
+
+  el.innerHTML=`
+    <div class="row" style="justify-content:space-between;align-items:center">
+      <div class="row" style="align-items:center"><h2>Finanzas</h2><span class="chip">Hoy</span></div>
+      <div class="row"><button class="ghost" onclick="cerrarCaja()">Cerrar caja</button></div>
+    </div>
+    <div class="row">
+      <div class="card" style="flex:1"><div class="muted">Ingresos</div><div style="font-size:1.6rem;font-weight:800">${money(ingresos)}</div></div>
+      <div class="card" style="flex:1"><div class="muted">Egresos</div><div style="font-size:1.6rem;font-weight:800">${money(egresos)}</div></div>
+      <div class="card" style="flex:1"><div class="muted">Resultado</div><div style="font-size:1.6rem;font-weight:800;color:${neto>=0?'#16a34a':'#dc2626'}">${money(neto)}</div></div>
+    </div>
+    <div class="card">
+      <h3>Registrar movimiento</h3>
+      <div class="row" style="align-items:end;margin-top:8px">
+        <div class="col" style="flex:1"><label class="muted">Tipo</label><select id="movTipo"><option value="ingreso">Ingreso</option><option value="egreso">Egreso</option></select></div>
+        <div class="col" style="flex:1"><label class="muted">Monto</label><input id="movMonto" type="number" min="0" placeholder="0"/></div>
+        <div class="col" style="flex:2"><label class="muted">Nota</label><input id="movNota" placeholder="Ej: Compra hielo / Propina"/></div>
+        <button id="btnMov" style="height:48px">Agregar</button>
+      </div>
+    </div>
+    <div class="card">
+      <h3>Movimientos de hoy</h3>
+      <table style="margin-top:10px">
+        <thead><tr><th>Hora</th><th>Tipo</th><th class="right">Monto</th><th>Mesa</th><th>Medio</th><th>Nota</th></tr></thead>
+        <tbody>
+          ${ hoy.length ? hoy.map(m=>`
+            <tr class="${m.sub==='cobro'?'row-cobro':''} ${m.sub==='eliminacion'?'row-elim':''}">
+              <td>${new Date(m.ts).toLocaleTimeString()}</td>
+              <td>${m.tipo}${m.sub?` (${m.sub})`:""}</td>
+              <td class="right">${money(m.monto)}</td>
+              <td>${m.mesaNombre||"—"}</td>
+              <td>${m.medio||"—"}</td>
+              <td>${m.nota||""}</td>
+            </tr>`).join("") : `<tr><td colspan="6" class="muted">Sin movimientos hoy.</td></tr>`}
+        </tbody>
+      </table>
+    </div>
+    <div class="card">
+      <h3>Historial de cierres</h3>
+      <table style="margin-top:10px">
+        <thead><tr><th>Inicio</th><th>Fin</th><th class="right">Ingresos</th><th class="right">Egresos</th><th class="right">Neto</th><th class="right">Movs.</th></tr></thead>
+        <tbody id="cierresTbody">
+          ${ n.cierres.length ? n.cierres.slice().reverse().map(c=>`
+            <tr>
+              <td>${new Date(c.inicioISO || c.fechaISO).toLocaleString()}</td>
+              <td>${new Date(c.finISO || c.fechaISO).toLocaleString()}</td>
+              <td class="right">${money(c.ingresos)}</td>
+              <td class="right">${money(c.egresos)}</td>
+              <td class="right" style="color:${c.neto>=0?'#16a34a':'#dc2626'}">${money(c.neto)}</td>
+              <td class="right">${c.movimientos} ${c.detalle?`<button class="ghost" data-detalle="${c.id}">ver</button>`:""}</td>
+            </tr>`).join("") : `<tr><td colspan="6" class="muted">Sin cierres aún.</td></tr>`}
+        </tbody>
+      </table>
+    </div>`;
+
+  document.getElementById("btnMov").onclick=()=>{
+    const tipo=document.getElementById("movTipo").value;
+    const monto=Number(document.getElementById("movMonto").value||0);
+    const nota=document.getElementById("movNota").value;
+    if(!monto||monto<=0) return alert("Ingresá un monto válido.");
+    negocioPushMovimiento(tipo,monto,nota,{sub:"manual"});
+    renderFinanzas(el);
+  };
+
+  document.querySelectorAll('[data-detalle]').forEach(btn=>{
+    btn.onclick=()=>openDetalleCierre(btn.getAttribute('data-detalle'));
+  });
+}
+function cerrarCaja(){
+  if(!hasPerm("finanzas")) return alert("Sin permiso.");
+  const n=negocioActual(); const [start,end]=hoyRange();
+  const hoy=n.movimientos.filter(m=>m.ts>=start && m.ts<=end);
+  const ingresos=hoy.filter(m=>m.tipo==="ingreso").reduce((a,b)=>a+Number(b.monto||0),0);
+  const egresos=hoy.filter(m=>m.tipo==="egreso").reduce((a,b)=>a+Number(b.monto||0),0);
+  const neto=ingresos-egresos;
+  if(!confirm(`Cerrar caja de hoy?\nIngresos: ${money(ingresos)}\nEgresos: ${money(egresos)}\nNeto: ${money(neto)}`)) return;
+
+  n.cierres.push({
+    id:uid(),
+    inicioISO:new Date(start).toISOString(),
+    finISO:new Date(end).toISOString(),
+    ingresos,egresos,neto,
+    movimientos:hoy.length,
+    detalle:hoy.slice()
+  });
+  n.movimientos=n.movimientos.filter(m=>!(m.ts>=start && m.ts<=end));
+  saveDB(db);
+  alert("Caja cerrada y archivada.");
+  go("finanzas");
+}
+
+/* Modal detalle del cierre */
+function openDetalleCierre(cierreId){
+  const n=negocioActual();
+  const c = n.cierres.find(x=>x.id===cierreId);
+  const modal=document.getElementById('modal');
+  const box=document.getElementById('modalBox');
+  if(!c || !c.detalle){ box.innerHTML=`<h3>Detalle no disponible</h3><div class="muted">Este cierre es de una versión anterior.</div><div class="row" style="justify-content:flex-end;margin-top:10px"><button class="ghost" onclick="closeModal()">Cerrar</button></div>`; modal.classList.remove('hidden'); return; }
+  box.innerHTML=`
+    <div class="row" style="justify-content:space-between;align-items:center">
+      <h3>Detalle de movimientos</h3>
+      <button class="ghost" onclick="closeModal()">Cerrar</button>
+    </div>
+    <div class="muted" style="margin:.25rem 0">${new Date(c.inicioISO).toLocaleString()} — ${new Date(c.finISO).toLocaleString()}</div>
+    <div class="card" style="margin-top:8px">
+      <table>
+        <thead><tr><th>Mesa</th><th class="right">Monto</th><th>Medio</th><th>Fecha</th></tr></thead>
+        <tbody>
+          ${
+            c.detalle.length ? c.detalle.map(m=>{
+              const cls = m.sub==='eliminacion' ? 'row-elim' : (m.sub==='cobro' ? 'row-cobro' : '');
+              return `<tr class="${cls}">
+                        <td>${m.mesaNombre||"—"}</td>
+                        <td class="right">${money(m.monto)}</td>
+                        <td>${m.medio||"—"}</td>
+                        <td>${new Date(m.ts).toLocaleString()}</td>
+                      </tr>`;
+            }).join("") : `<tr><td colspan="4" class="muted">Sin movimientos en este cierre.</td></tr>`
+          }
+        </tbody>
+      </table>
+    </div>`;
+  modal.classList.remove('hidden');
+}
+function closeModal(){ document.getElementById('modal').classList.add('hidden'); }
+
+/* =============== AJUSTES (Usuarios + Permisos + Impresión) =============== */
+function renderAjustes(el){
+  if(!(hasPerm("usuarios") || esAdmin())){ el.innerHTML=`<div class="card"><h2>Ajustes</h2><p class="muted">Solo usuarios autorizados pueden gestionar usuarios.</p></div>`; return; }
+  const n=negocioActual();
+  const imp = ajustesImp();
+  const modos = [
+    {val:"sistema", label:"Sistema (HTML/PDF – WiFi/AirPrint/Mopria)"},
+    {val:"rawbt", label:"Android RawBT (térmica Bluetooth – ESC/POS)"}
+  ];
+
+  const impresionCard = `
+    <div class="card">
+      <h3>Impresión</h3>
+      <div class="row" style="align-items:end;margin-top:8px">
+        <div class="col" style="flex:2">
+          <label class="muted">Modo</label>
+          <select id="impModo">${modos.map(m=>`<option value="${m.val}" ${imp.modo===m.val?'selected':''}>${m.label}</option>`).join("")}</select>
+        </div>
+        <div class="col" style="flex:1">
+          <label class="muted">Ancho caracteres</label>
+          <input id="impAncho" type="number" min="24" max="64" value="${imp.ancho||48}" />
+        </div>
+        <button id="impGuardar" style="height:48px">Guardar</button>
+        <button class="ghost" id="impTest" style="height:48px">Impresión de prueba</button>
+      </div>
+      <div class="muted" style="margin-top:6px">
+        <b>Sistema</b>: abre el diálogo de imprimir del teléfono (WiFi/AirPrint/Mopria).<br>
+        <b>RawBT</b>: requiere la app <i>RawBT</i> instalada en Android y emparejada con la impresora térmica.
+      </div>
+    </div>
+  `;
+
+  el.innerHTML=`
+    <div class="row" style="justify-content:space-between;align-items:center"><h2>Ajustes</h2><span class="muted">Usuarios & permisos</span></div>
+    ${impresionCard}
+    <div class="card">
+      <h3>Agregar usuario</h3>
+      <div class="row" style="align-items:end;margin-top:8px">
+        <div class="col" style="flex:1"><label class="muted">Nombre</label><input id="uNombre" placeholder="Nombre y apellido"/></div>
+        <div class="col" style="flex:1"><label class="muted">Email</label><input id="uEmail" type="email" placeholder="email@dominio.com"/></div>
+        <div class="col" style="flex:.8"><label class="muted">Rol</label><select id="uRol">${ROLES.map(r=>`<option value="${r}">${r}</option>`).join("")}</select></div>
+        <div class="col" style="flex:.8"><label class="muted">Contraseña</label><input id="uPass" type="password" placeholder="••••••"/></div>
+      </div>
+      <div class="row" style="align-items:center;margin-top:8px">
+        <div class="muted">Permisos iniciales:</div>
+        ${Object.entries(PERMISOS).map(([k,lab])=>`
+          <label style="display:flex;gap:6px;align-items:center">
+            <input type="checkbox" data-newperm="${k}"/> ${lab}
+          </label>`).join("")}
+      </div>
+      <div class="row" style="margin-top:8px">
+        <button id="btnAddUser" style="height:48px">Crear</button>
+      </div>
+    </div>
+    <div class="card">
+      <h3>Usuarios</h3>
+      <div class="list" style="margin-top:10px" id="listaUsers"></div>
+    </div>`;
+
+  // Guardar ajustes impresión
+  document.getElementById("impGuardar").onclick=()=>{
+    const modo=document.getElementById("impModo").value;
+    const ancho=parseInt(document.getElementById("impAncho").value||48,10);
+    n.ajustes = n.ajustes || {};
+    n.ajustes.impresion = {modo, ancho:Math.max(24, Math.min(64, ancho))};
+    saveDB(db);
+    alert("Ajustes de impresión guardados.");
+  };
+  document.getElementById("impTest").onclick=()=>{
+    printDispatch({
+      titulo:"Prueba de impresión",
+      encabezado:[
+        `${getSesion()?.negocio||"Negocio"}`,
+        new Date().toLocaleString()
+      ],
+      lineas:[
+        "------------------------------",
+        "Si ves esto, la impresión está OK.",
+        "Modo: "+ajustesImp().modo.toUpperCase()
+      ]
+    });
+  };
+
+  // Listado de usuarios
+  const listaDiv=document.getElementById("listaUsers");
+  function draw(){
+    listaDiv.innerHTML = n.usuarios.map(u=>{
+      const admin = u.rol==="admin";
+      return `
+        <div class="item">
+          <div>
+            <div><strong>${u.nombre}</strong> <span class="tag">${u.rol}</span> ${u.activo?'<span class="tag ok">activo</span>':'<span class="tag danger">inactivo</span>'}</div>
+            <div class="muted">${u.email}</div>
+            <div class="row" style="margin-top:8px;align-items:center">
+              <div class="muted">Permisos:</div>
+              ${Object.entries(PERMISOS).map(([k,lab])=>{
+                const checked = admin ? "checked" : (u.perms && u.perms[k]) ? "checked" : "";
+                const dis = admin ? "disabled" : "";
+                return `<label style="display:flex;gap:6px;align-items:center">
+                          <input type="checkbox" data-uperm="${u.id}:${k}" ${checked} ${dis}/> ${lab}
+                        </label>`;
+              }).join("")}
+            </div>
+          </div>
+          <div class="row">
+            ${!admin?`<button class="ghost" onclick="toggleUsuario('${u.id}')">${u.activo?'Desactivar':'Activar'}</button>`:""}
+            ${!admin?`<button class="ghost" onclick="resetPass('${u.id}')">Reiniciar pass</button>`:""}
+            ${!admin?`<button class="danger" onclick="borrarUsuario('${u.id}')">Eliminar</button>`:""}
+          </div>
+        </div>`;
+    }).join("");
+    listaDiv.querySelectorAll('[data-uperm]').forEach(ch=>{
+      ch.onchange=(e)=>{
+        const [uid, key]=e.target.getAttribute('data-uperm').split(':');
+        const user=n.usuarios.find(x=>x.id===uid);
+        if(!user) return;
+        user.perms = user.perms || {};
+        user.perms[key]= e.target.checked;
+        saveDB(db);
+      };
+    });
+  }
+  draw();
+
+  document.getElementById("btnAddUser").onclick=()=>{
+    const nombre=document.getElementById("uNombre").value.trim();
+    const email=(document.getElementById("uEmail").value||"").trim().toLowerCase();
+    const rol=document.getElementById("uRol").value;
+    const pass=document.getElementById("uPass").value;
+    const iniciales={};
+    document.querySelectorAll('[data-newperm]').forEach(cb=>{
+      const k=cb.getAttribute('data-newperm'); if(cb.checked) iniciales[k]=true;
+    });
+    if(!nombre||!email||!rol||!pass) return alert("Completá todos los campos.");
+    if(n.usuarios.some(x=>x.email===email)) return alert("Ese email ya existe.");
+    n.usuarios.push({id:uid(),nombre,email,pass:hash(pass),rol,activo:true,perms:iniciales});
+    saveDB(db); renderAjustes(el);
+  };
+}
+function toggleUsuario(id){
+  const n=negocioActual(); const u=n.usuarios.find(x=>x.id===id); if(!u) return;
+  if(u.rol==="admin") return alert("No se puede desactivar al admin.");
+  u.activo=!u.activo; saveDB(db); go("ajustes");
+}
+function resetPass(id){
+  const n=negocioActual(); const u=n.usuarios.find(x=>x.id===id); if(!u) return;
+  if(u.rol==="admin") return alert("No se puede cambiar la contraseña del admin desde aquí.");
+  const nuevo=prompt("Nueva contraseña:"); if(!nuevo) return;
+  u.pass=hash(nuevo); saveDB(db); alert("Contraseña actualizada.");
+}
+function borrarUsuario(id){
+  const n=negocioActual(); const u=n.usuarios.find(x=>x.id===id); if(!u) return;
+  if(u.rol==="admin") return alert("No se puede eliminar al admin.");
+  if(!confirm("¿Eliminar usuario?")) return;
+  const i=n.usuarios.findIndex(x=>x.id===id); if(i>=0){ n.usuarios.splice(i,1); saveDB(db); go("ajustes"); }
+}
+
+/* INIT */
+(function(){ if(getSesion()) renderApp(); else renderAuth(); })();
+</script>
+</body>
+</html>
